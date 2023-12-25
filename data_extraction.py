@@ -3,47 +3,8 @@ from sqlalchemy import create_engine
 import yaml
 
 class DataExtractor:
-    @staticmethod
-    def read_db_creds(file_path):
-        try:
-            with open(file_path, 'r') as file:
-                creds = yaml.safe_load(file)
-                return creds
-        except FileNotFoundError:
-            print(f"Error: File not found at {file_path}")
-            return {}
-        except yaml.YAMLError as e:
-            print(f"Error reading YAML file: {e}")
-            return {}
-        
-
-    @staticmethod
-    def init_db_engine(creds):
-
-        # Extract credentials
-        host = creds['RDS_HOST']
-        user = creds['RDS_USER']
-        password = creds['RDS_PASSWORD']
-        database = creds['RDS_DATABASE']
-        port = creds['RDS_PORT']
-
-        try:
-            engine = create_engine(
-                f"postgresql://{creds['RDS_HOST']}:{creds['RDS_PASSWORD']}@{creds['RDS_HOST']}:{creds['RDS_PORT']}/{creds['RDS_DATABASE']}"
-            )
-            return engine
-        except Exception as e:
-            print(f"Error initializing database engine: {e}")
-            return None
-
-    @staticmethod
-    def list_db_tables(engine):
-        try:
-            tables = engine.table_names()
-            return tables
-        except Exception as e:
-            print(f"Error listing tables: {e}")
-            return []
+    def __init__(self, file_path):
+        self.credentials = self.read_db_creds(file_path)
 
     @staticmethod
     def read_rds_table(engine, table_name):

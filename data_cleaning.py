@@ -1,8 +1,7 @@
 class DataCleaning:
-    def __init__(self, data):
-
-
-class DataCleaning:
+    def __init__(self, file_path):
+        self.credentials = self.read_db_creds(file_path)
+        
     @staticmethod
     def clean_user_data(df):
         # Your cleaning logic goes here

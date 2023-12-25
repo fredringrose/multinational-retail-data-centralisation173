@@ -19,11 +19,10 @@ class DataBaseConnector:
             print(f"Error reading YAML file: {e}")
             return {}
         
-def init_db_engine(self):
+    def init_db_engine(self):
         if not self.credentials:
             print("Error: Credentials not found.")
             return None
-
         try:
             # Assuming the credentials dictionary has keys RDS_USER, RDS_PASSWORD, RDS_HOST, RDS_PORT, RDS_DATABASE
             db_url = f"postgresql://{self.credentials['RDS_USER']}:{self.credentials['RDS_PASSWORD']}@{self.credentials['RDS_HOST']}:{self.credentials['RDS_PORT']}/{self.credentials['RDS_DATABASE']}"
@@ -32,6 +31,26 @@ def init_db_engine(self):
         except Exception as e:
             print(f"Error initializing database engine: {e}")
             return None
+        
+    # Reads credentials from return of read_db_creds and initialises and returns sqlalchemy database engine
+        try:
+            engine = create_engine(
+                f"postgresql://{creds['RDS_HOST']}:{creds['RDS_PASSWORD']}@{creds['RDS_HOST']}:{creds['RDS_PORT']}/{creds['RDS_DATABASE']}"
+            )
+            return engine
+        except Exception as e:
+            print(f"Error initializing database engine: {e}")
+            return None
+        
+    @staticmethod
+    def list_db_tables(engine):
+        # lists all the tables in the database so you know which tables you can extract data from
+        try:
+            tables = engine.table_names()
+            return tables
+        except Exception as e:
+            print(f"Error listing tables: {e}")
+            return []
 
 
 # Example usage:
