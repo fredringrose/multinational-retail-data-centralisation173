@@ -2,18 +2,20 @@ import yaml
 import psycopg2
 import sqlalchemy
 
-class DataBaseConnector:
+class DatabaseConnector:
     def __init__(self, file_path):
-        self.credentials = self.read_db_creds(file_path)
-
-    @staticmethod
-    def read_db_creds(file_path):
+        self.file_path = file_path
+        self.credentials = self.read_db_creds()
+        self.engine = self.init_db_engine()
+        self.tables = self.list_db_tables()
+        
+    def read_db_creds(self):
         try:
-            with open(file_path, 'r') as file:
+            with open(self.file_path, 'r') as file:
                 creds = yaml.safe_load(file)
                 return creds
         except FileNotFoundError:
-            print(f"Error: File not found at {file_path}")
+            print(f"Error: File not found at {self.file_path}")
             return {}
         except yaml.YAMLError as e:
             print(f"Error reading YAML file: {e}")
@@ -26,28 +28,19 @@ class DataBaseConnector:
         try:
             # Assuming the credentials dictionary has keys RDS_USER, RDS_PASSWORD, RDS_HOST, RDS_PORT, RDS_DATABASE
             db_url = f"postgresql://{self.credentials['RDS_USER']}:{self.credentials['RDS_PASSWORD']}@{self.credentials['RDS_HOST']}:{self.credentials['RDS_PORT']}/{self.credentials['RDS_DATABASE']}"
-            engine = create_engine(db_url)
+            engine = sqlalchemy.create_engine(db_url)
             return engine
         except Exception as e:
             print(f"Error initializing database engine: {e}")
             return None
         
-    # Reads credentials from return of read_db_creds and initialises and returns sqlalchemy database engine
-        try:
-            engine = create_engine(
-                f"postgresql://{creds['RDS_HOST']}:{creds['RDS_PASSWORD']}@{creds['RDS_HOST']}:{creds['RDS_PORT']}/{creds['RDS_DATABASE']}"
-            )
-            return engine
-        except Exception as e:
-            print(f"Error initializing database engine: {e}")
-            return None
-        
-    @staticmethod
-    def list_db_tables(engine):
+    def list_db_tables(self):
         # lists all the tables in the database so you know which tables you can extract data from
         try:
-            tables = engine.table_names()
-            return tables
+            metadata = sqlalchemy.MetaData()
+            metadata.reflect(bind=self.engine)
+            return metadata.tables.keys()
+        
         except Exception as e:
             print(f"Error listing tables: {e}")
             return []
@@ -55,10 +48,8 @@ class DataBaseConnector:
 
 # Example usage:
 file_path = 'db_creds.yaml'
-database_connector = DataBaseConnector(file_path)
-credentials = database_connector.read_db_creds(file_path)
-print(credentials)
-engine = database_connector.init_db_engine()
+database_connector = DatabaseConnector(file_path)
+print(database_connector.tables)
 
 
 
