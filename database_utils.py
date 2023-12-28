@@ -35,7 +35,7 @@ class DatabaseConnector:
             return None
         
     def list_db_tables(self):
-        # lists all the tables in the database so you know which tables you can extract data from
+        # lists all the tables in the database using SQLAlchemy's MetaData container object so you know which tables you can extract data from
         try:
             metadata = sqlalchemy.MetaData()
             metadata.reflect(bind=self.engine)

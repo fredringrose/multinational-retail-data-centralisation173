@@ -1,42 +1,32 @@
 import pandas as pd
 from sqlalchemy import create_engine
 import yaml
+from database_utils import DatabaseConnector
 
-class DataExtractor:
-    def __init__(self, file_path):
-        self.credentials = self.read_db_creds(file_path)
+class DatabaseExtractor:
+    def __init__(self, database_connector):
+        self.database_connector = database_connector
 
-    @staticmethod
-    def read_rds_table(engine, table_name):
+    def read_rds_table(self, table_name):
+        if table_name not in self.database_connector.tables:
+            print(f"Error: Table '{table_name}' not found in the database.")
+            return None
+
         try:
-            query = f"SELECT * FROM {table_name};"
-            df = pd.read_sql(query, engine)
+            # Running SQL query and returning table in a DataFrame
+            query = f"SELECT * FROM {table_name}"
+            df = pd.read_sql(query, self.database_connector.engine)
             return df
         except Exception as e:
-            print(f"Error reading table {table_name}: {e}")
-            return pd.DataFrame()
+            print(f"Error reading table '{table_name}': {e}")
+            return None
 
-    @staticmethod
-    def upload_to_db(engine, df, table_name):
-        try:
-            df.to_sql(table_name, engine, index=False, if_exists='replace')
-            print(f"Data uploaded to {table_name} successfully.")
-        except Exception as e:
-            print(f"Error uploading data to {table_name}: {e}")
+# Example usage:
+file_path = 'db_creds.yaml'
+database_connector = DatabaseConnector(file_path)
+database_extractor = DatabaseExtractor(database_connector)
 
-# Example usage
-read_data = DataExtractor.read_db_creds('db_creds.yaml')
-mrdc_engine = DataExtractor.init_db_engine(read_data)
+# Assuming 'orders_table' is a valid table in the database
+orders_data = database_extractor.read_rds_table('orders_table')
 
-if mrdc_engine:
-    tables = DataExtractor.list_db_tables(engine)
-    print(f"Available tables: {tables}")
-
-    user_data_table = 'Data Handling Project'
-    user_data_df = DataExtractor.read_rds_table(engine, user_data_table)
-
-    if not user_data_df.empty:
-        cleaned_user_data = DataCleaning.clean_user_data(user_data_df)
-
-        connector = DatabaseConnector()
-        connector.upload_to_db(engine, cleaned_user_data, 'dim_users')
+# Use the 'orders_data' DataFrame as needed
