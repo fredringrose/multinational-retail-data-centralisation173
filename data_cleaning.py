@@ -81,9 +81,8 @@ class DataCleaning:
         return cleaned_df
     
     def clean_orders_data(self, df):
-        # Check and remove the first unnamed column if it exists
-        if df.columns[0] == '':  # Adjust the condition based on how the unnamed column is represented
-            df = df.iloc[:, 1:]
+        # Check and remove the first two unnamed columns if they exist
+        df = df.iloc[:, 2:]
 
         # Remove 'first_name' and 'last_name' columns if they exist
         columns_to_remove = ['first_name', 'last_name']
@@ -98,11 +97,13 @@ class DataCleaning:
 
         # Check if 'card_number', 'store_code', 'product_code' are strings and if so, cast them to string
         if is_string_dtype(df['card_number']):
-            df['card_number'] = df['card_number'].astype('string')
+            df['card_number'] = df['card_number'].str.slice(0, 16).astype('string')
+
         if is_string_dtype(df['store_code']):
-            df['store_code'] = df['store_code'].astype('string')
+            df['store_code'] = df['store_code'].str.slice(0, 12).astype('string')
+
         if is_string_dtype(df['product_code']):
-            df['product_code'] = df['product_code'].astype('string')
+            df['product_code'] = df['product_code'].str.slice(0, 11).astype('string')
 
         # Check if 'product_quantity' is a numeric type and if so, cast to int (smallint)
         if is_numeric_dtype(df['product_quantity']):
@@ -111,33 +112,6 @@ class DataCleaning:
 
         return df
     
-    def clean_events_data(self, df):
-        # Regular expression for the correct timestamp format
-        timestamp_regex = r'^\d{2}:\d{2}:\d{2}$'
-
-        # Function to check if all values in a column match the timestamp format
-        def all_values_are_valid_timestamps(column):
-            return all(column.apply(lambda x: bool(re.match(timestamp_regex, str(x)))))
-
-        # List to hold columns to drop
-        columns_to_drop = []
-
-        # Check each column and mark it for dropping if it contains invalid data
-        for col in df.columns:
-            if not all_values_are_valid_timestamps(df[col]):
-                columns_to_drop.append(col)
-
-        # Drop the marked columns
-        df = df.drop(columns=columns_to_drop)
-
-        return df
-
-# Example usage
-# Assuming you have a DataFrame 'events_df' with timestamp data
-# data_cleaning = DataCleaning()
-
-
-
     def clean_events_data(self, df):
         # Regular expression for the correct timestamp format
         timestamp_regex = r'^\d{2}:\d{2}:\d{2}$'
@@ -168,7 +142,7 @@ In this modified `clean_events_data` method:
 - The method then drops all the columns in the `columns_to_drop` list from the DataFrame.
 - Finally, the cleaned DataFrame, with only the columns containing valid timestamps, is returned.
 
-This approach ensures that your final DataFrame only includes columns where all values are correctly formatted timestamps, removing any columns with incorrect or null values. Remember to replace `'events_df'` with your actual DataFrame when using this method.
+This approach ensures that the final DataFrame only includes columns where all values are correctly formatted timestamps, removing any columns with incorrect or null values.
 
 '''
 # Example usage
@@ -234,7 +208,7 @@ if __name__ == "__main__":
     orders_df = data_extractor.read_rds_table('orders_table')
     cleaned_orders_df = data_cleaning.clean_orders_data(orders_df)
     db_connector.upload_to_db(cleaned_product_details,'orders_table', engine)
-    '''
+    
     # 6. Date events details #
     dates_s3_address = 'https://data-handling-public.s3.eu-west-1.amazonaws.com/date_details.json'
     date_events_df = data_extractor.extract_from_http_json(dates_s3_address)
@@ -242,8 +216,11 @@ if __name__ == "__main__":
     transposed_cleaned_df = cleaned_date_events_df.transpose()
     db_connector.upload_to_db(transposed_cleaned_df, 'dim_date_times', engine)
 
+    '''
 
-
-
+    # 5. Master orders table #
+    orders_df = data_extractor.read_rds_table('orders_table')
+    cleaned_orders_df = data_cleaning.clean_orders_data(orders_df)
+    print(cleaned_orders_df.head(10))
 
 
