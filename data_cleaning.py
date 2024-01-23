@@ -23,11 +23,23 @@ class DataCleaning:
         # Remove rows with Null values
         df = df.dropna()
 
-        # Correct the date format
-        '''
-        df['date_of_birth'] = pd.to_datetime(df['date_of_birth'], format='mixed')
-        df['date_of_birth'] = df['date_of_birth'].dt.strftime('%d-%m-%Y')
-        '''
+        import pandas as pd
+
+        # Casting the columns to the correct data types
+
+        # Ensure 'first_name' and 'last_name' are stored as strings (VARCHAR)
+        df['first_name'] = df['first_name'].str.slice(0, 255).astype('string')
+        df['last_name'] = df['last_name'].str.slice(0, 255).astype('string')
+
+        # Convert 'date_of_birth' and 'join_date' from text to datetime
+        df['date_of_birth'] = pd.to_datetime(df['date_of_birth'], errors='coerce')
+        df['join_date'] = pd.to_datetime(df['join_date'], errors='coerce')
+
+        # Ensure 'country_code' is stored as string (VARCHAR)
+        df['country_code'] = df['country_code'].astype('string')
+
+        # Ensure 'user_uuid' is stored as string (UUID)
+        df['user_uuid'] = df['user_uuid'].astype('string')
 
         return df
         
@@ -217,10 +229,10 @@ if __name__ == "__main__":
     db_connector.upload_to_db(transposed_cleaned_df, 'dim_date_times', engine)
 
     '''
+    ## Testing star-based schema ##
+    # 1. User details #
+    cleaned_users_df = data_cleaning.clean_user_data(users_df)
+    print(cleaned_users_df['join_date'])
 
-    # 5. Master orders table #
-    orders_df = data_extractor.read_rds_table('orders_table')
-    cleaned_orders_df = data_cleaning.clean_orders_data(orders_df)
-    print(cleaned_orders_df.head(10))
 
 

@@ -140,32 +140,41 @@ if __name__ == "__main__":
     # Using tabula-py package to return tabular data from PDF link as DataFrame
     pdf_path = 'https://data-handling-public.s3.eu-west-1.amazonaws.com/card_details.pdf'
     df_card = data_extractor.retrieve_pdf_data(pdf_path)
-    # .info() provides summary of data types and non-null values
+    .info() provides summary of data types and non-null values
     
     print(df_card.info())
     print(df_card.isna().mean() * 100)
-    '''
+
     # Variables containing the two API endpoints required for GET requests
-    #number_of_stores_endpoint = 'https://aqj7u5id95.execute-api.eu-west-1.amazonaws.com/prod/number_stores'
-    #retrieve_stores_data_endpoint = 'https://aqj7u5id95.execute-api.eu-west-1.amazonaws.com/prod/store_details/{store_number}'
+    number_of_stores_endpoint = 'https://aqj7u5id95.execute-api.eu-west-1.amazonaws.com/prod/number_stores'
+    retrieve_stores_data_endpoint = 'https://aqj7u5id95.execute-api.eu-west-1.amazonaws.com/prod/store_details/{store_number}'
 
-    #store_number = data_extractor.list_number_of_stores(number_of_stores_endpoint)
-    #print(store_number)
-    #number_of_stores = int(store_number['number_stores'])
+    store_number = data_extractor.list_number_of_stores(number_of_stores_endpoint)
+    print(store_number)
+    number_of_stores = int(store_number['number_stores'])
     # Calling retrieve data method with API endpoint as argument to return store data in DataFrame in variable
-    #stores_df = data_extractor.retrieve_stores_data(retrieve_stores_data_endpoint, number_of_stores)
+    stores_df = data_extractor.retrieve_stores_data(retrieve_stores_data_endpoint, number_of_stores)
     
-    #print(stores_df.head())
-    #print(stores_df.info())
+    print(stores_df.head())
+    print(stores_df.info())
 
 
-    #s3_address = 's3://data-handling-public/products.csv'
-    #products_df = data_extractor.extract_from_s3(s3_address)
-    #if products_df is not None:
-     #   print(products_df['weight'])  # Prints the weight column of the DataFrame
+    s3_address = 's3://data-handling-public/products.csv'
+    products_df = data_extractor.extract_from_s3(s3_address)
+    if products_df is not None:
+        print(products_df['weight'])  # Prints the weight column of the DataFrame
 
     
     dates_s3_address = 'https://data-handling-public.s3.eu-west-1.amazonaws.com/date_details.json'
     date_events_df = data_extractor.extract_from_http_json(dates_s3_address)
     print(date_events_df.dtypes)
     print(date_events_df.head(2))
+    '''
+    # Assuming 'orders_table' is a valid table in the database
+    orders_df = data_extractor.read_rds_table('orders_table')
+    print(orders_df['product_code'])
+
+
+    # Assuming 'legacy_users' is a valid table in the database
+    #users_df = data_extractor.read_rds_table('legacy_users')
+    #print(users_df)
