@@ -6,6 +6,7 @@ import json
 from tabula import read_pdf
 import boto3
 import pandas as pd
+from pandas.api.types import is_string_dtype, is_numeric_dtype
 import re
 from sqlalchemy import create_engine
 from database_utils import DatabaseConnector
@@ -87,6 +88,26 @@ class DataCleaning:
         # Remove 'first_name' and 'last_name' columns if they exist
         columns_to_remove = ['first_name', 'last_name']
         df = df.drop(columns=columns_to_remove, errors='ignore')
+
+        ''' Casting the columns to the correct data types '''
+        # Check if 'date_uuid' and 'user_uuid' columns are strings and if so, cast them to string (UUIDs are stored as strings in pandas)
+        if is_string_dtype(df['date_uuid']):
+            df['date_uuid'] = df['date_uuid'].astype('string')
+        if is_string_dtype(df['user_uuid']):
+            df['user_uuid'] = df['user_uuid'].astype('string')
+
+        # Check if 'card_number', 'store_code', 'product_code' are strings and if so, cast them to string
+        if is_string_dtype(df['card_number']):
+            df['card_number'] = df['card_number'].astype('string')
+        if is_string_dtype(df['store_code']):
+            df['store_code'] = df['store_code'].astype('string')
+        if is_string_dtype(df['product_code']):
+            df['product_code'] = df['product_code'].astype('string')
+
+        # Check if 'product_quantity' is a numeric type and if so, cast to int (smallint)
+        if is_numeric_dtype(df['product_quantity']):
+            df['product_quantity'] = df['product_quantity'].astype('int16')
+
 
         return df
     
