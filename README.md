@@ -1,4 +1,4 @@
-# multinational-retail-data-centralisation173
+# Multinational Retail Data Centralisation Project
 
   # Database Connector
 
