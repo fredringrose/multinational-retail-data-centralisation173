@@ -52,6 +52,7 @@ class DatabaseConnector:
             db_url = f"postgresql://{self.credentials['RDS_USER']}:{self.credentials['RDS_PASSWORD']}@{self.credentials['RDS_HOST']}:{self.credentials['RDS_PORT']}/{self.credentials['RDS_DATABASE']}"
             engine = sqlalchemy.create_engine(db_url)
             return engine
+```
 
  # Data Extraction and Processing with Python
 
@@ -110,6 +111,7 @@ The `retrieve_pdf_data` method of the `DataExtractor` class is used to extract t
 ```python
 def retrieve_pdf_data(self, link): 
     # Use tabula to read the PDF file from
+```
 
  # Data Cleaning and Loading Script
 
