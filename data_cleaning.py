@@ -177,7 +177,7 @@ if __name__ == "__main__":
     data_cleaning = DataCleaning(data_extractor)
     # Secure local connection to 'sales_data' database
     engine = create_engine(f"{DATABASE_TYPE}+{DBAPI}://{USER}:{PASSWORD}@{HOST}:{PORT}/{DATABASE}")
-    '''
+    
     # 1. User details #
     users_df = data_extractor.read_rds_table('legacy_users')
     cleaned_users_df = data_cleaning.clean_user_data(users_df)
@@ -221,14 +221,7 @@ if __name__ == "__main__":
     transposed_cleaned_df = cleaned_date_events_df.transpose()
     db_connector.upload_to_db(transposed_cleaned_df, 'dim_date_times', engine)
 
-    '''
-    ## Testing star-based schema ##
-    # 5. Master orders table #
-    dates_s3_address = 'https://data-handling-public.s3.eu-west-1.amazonaws.com/date_details.json'
-    date_events_df = data_extractor.extract_from_http_json(dates_s3_address)
-    cleaned_date_events_df = data_cleaning.clean_events_data(date_events_df)
-    transposed_cleaned_df = cleaned_date_events_df.transpose()
-    print(transposed_cleaned_df.head())
+    
 
 
 

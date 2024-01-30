@@ -1,9 +1,11 @@
 import os
 # Manually setting file path for JAVA_HOME in order to run tabula-py successfully
 os.environ["JAVA_HOME"] = './miniconda3/lib/python3.11/site-packages'
+import pprint
 import requests
 import json
 from tabula import read_pdf
+from sqlalchemy import create_engine
 import boto3
 import pandas as pd
 from database_utils import DatabaseConnector  # Import the DatabaseConnector class
@@ -57,7 +59,7 @@ class DataExtractor:
             print(f'A request exception occurred: {e}')
             return None
 
-        # Function to get the details of a specific store
+    # Function to get the details of a specific store
     def retrieve_stores_data(self, endpoint, number_of_stores):
         # Debugging: print the number of stores
         print(f"Retrieving data for {number_of_stores - 1} stores.")
@@ -66,7 +68,7 @@ class DataExtractor:
         stores_data = []
 
         # Loop through the number of stores, retrieve details for each, and append to the list
-        for store_number in range(1, number_of_stores + 1):  # Assuming store numbers start at 1
+        for store_number in range(1, number_of_stores):  # Assuming store numbers start at 0
             try:
                 # Replace placeholder with actual store number
                 response = requests.get(endpoint.format(store_number=store_number), headers=self.headers)
@@ -82,6 +84,15 @@ class DataExtractor:
 
         # Convert the list of store details to a pandas DataFrame
         return pd.DataFrame(stores_data)
+    
+    def called_clean_store_data(self, df):
+        # Drop any columns with more than 100 null values
+        df = df.dropna(thresh=1000, axis=1)
+        
+        # Drop rows with any null values
+        df = df.dropna(how='any', axis=0)
+        
+        return df
     
     def extract_from_s3(self, s3_address):
         # Split the S3 address into bucket name and file key
@@ -107,17 +118,25 @@ class DataExtractor:
         
     def extract_from_http_json(self, url):
         try:
-            # Send a GET request to the URL
+        # Send a GET request to the URL
             response = requests.get(url)
             response.raise_for_status()  # Raise an error for bad status codes
 
             # Load JSON content
             data = json.loads(response.content)
+            print("Data type:", type(data))
+            print("Length of data:", len(data))
+            pprint.pprint(list(data.keys())[:6])
+
+            # If data is a dictionary, wrap it in a list
+            if isinstance(data, dict):
+                data = [data]
 
             # Convert the JSON object to a pandas DataFrame
             df = pd.json_normalize(data)
-
+            print(df.head())
             return df
+        
         except requests.RequestException as e:
             print(f"HTTP request error: {e}")
             return None
@@ -135,16 +154,20 @@ if __name__ == "__main__":
     db_connector = DatabaseConnector(file_path)
     data_extractor = DataExtractor(db_connector)
     '''
-    # Assuming 'orders_table' is a valid table in the database
-    data_extractor.read_rds_table('orders_table')
+     # 1. User details #
+    # Assuming 'legacy_users' is a valid table in the database
+    users_df = data_extractor.read_rds_table('legacy_users')
+
+    # 2. Card details #
     # Using tabula-py package to return tabular data from PDF link as DataFrame
     pdf_path = 'https://data-handling-public.s3.eu-west-1.amazonaws.com/card_details.pdf'
     df_card = data_extractor.retrieve_pdf_data(pdf_path)
-    .info() provides summary of data types and non-null values
+    # .info() provides summary of data types and non-null values
     
     print(df_card.info())
     print(df_card.isna().mean() * 100)
 
+    # 3. Store details #
     # Variables containing the two API endpoints required for GET requests
     number_of_stores_endpoint = 'https://aqj7u5id95.execute-api.eu-west-1.amazonaws.com/prod/number_stores'
     retrieve_stores_data_endpoint = 'https://aqj7u5id95.execute-api.eu-west-1.amazonaws.com/prod/store_details/{store_number}'
@@ -158,23 +181,24 @@ if __name__ == "__main__":
     print(stores_df.head())
     print(stores_df.info())
 
-
+    # 4. Product details #
     s3_address = 's3://data-handling-public/products.csv'
     products_df = data_extractor.extract_from_s3(s3_address)
     if products_df is not None:
         print(products_df['weight'])  # Prints the weight column of the DataFrame
 
-    
+    # 5. Master orders table # (Using same extraction method used User details)
+    orders_df = data_extractor.read_rds_table('orders_table')
+
+    # 6. Date events details #
     dates_s3_address = 'https://data-handling-public.s3.eu-west-1.amazonaws.com/date_details.json'
     date_events_df = data_extractor.extract_from_http_json(dates_s3_address)
     print(date_events_df.dtypes)
     print(date_events_df.head(2))
     '''
-    # Assuming 'orders_table' is a valid table in the database
-    orders_df = data_extractor.read_rds_table('orders_table')
-    print(orders_df['product_code'])
 
+    ## Testing Extraction methods ##
+    dates_s3_address = 'https://data-handling-public.s3.eu-west-1.amazonaws.com/date_details.json'
+    date_events_df = data_extractor.extract_from_http_json(dates_s3_address)
+    
 
-    # Assuming 'legacy_users' is a valid table in the database
-    #users_df = data_extractor.read_rds_table('legacy_users')
-    #print(users_df)

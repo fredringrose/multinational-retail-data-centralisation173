@@ -75,9 +75,6 @@ if __name__ == "__main__":
     db_connector = DatabaseConnector(file_path)
     print(db_connector.tables)
     
-    engine = db_connector.engine
-    first_ten_rows = pd.read_sql("SELECT * FROM legacy_store_details LIMIT 11", engine)
-    print(first_ten_rows)
 
 
 
