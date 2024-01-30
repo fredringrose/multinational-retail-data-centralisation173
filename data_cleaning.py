@@ -2,11 +2,9 @@ import os
 # Manually setting file path for JAVA_HOME in order to run tabula-py successfully
 os.environ["JAVA_HOME"] = './miniconda3/lib/python3.11/site-packages'
 import requests
-import json
-from tabula import read_pdf
-import boto3
 import pandas as pd
 from pandas.api.types import is_string_dtype, is_numeric_dtype
+import psycopg2
 import re
 from sqlalchemy import create_engine
 from database_utils import DatabaseConnector
@@ -53,13 +51,14 @@ class DataCleaning:
         print(df)
         return df
     
+
     def called_clean_store_data(self, df):
         # Drop any columns with more than 100 null values
         df = df.dropna(thresh=1000, axis=1)
         
         # Drop rows with any null values
         df = df.dropna(how='any', axis=0)
-        print(df)
+        
         return df
     
     def convert_product_weights(self, products_df):
@@ -97,7 +96,7 @@ class DataCleaning:
         df = df.iloc[:, 2:]
 
         # Remove 'first_name' and 'last_name' columns if they exist
-        columns_to_remove = ['first_name', 'last_name']
+        columns_to_remove = ['first_name', 'last_name', '1']
         df = df.drop(columns=columns_to_remove, errors='ignore')
 
         ''' Casting the columns to the correct data types '''
@@ -138,10 +137,10 @@ class DataCleaning:
         # Check each column and mark it for dropping if it contains invalid data
         for col in df.columns:
             if not all_values_are_valid_timestamps(df[col]):
-                columns_to_drop.append(col)
+                columns_to_drop.append(col)              
 
         # Drop the marked columns
-        df = df.drop(columns=columns_to_drop)
+        # df = df.drop(columns=columns_to_drop)
 
         return df
 
@@ -157,13 +156,7 @@ In this modified `clean_events_data` method:
 This approach ensures that the final DataFrame only includes columns where all values are correctly formatted timestamps, removing any columns with incorrect or null values.
 
 '''
-# Example usage
-# Assuming you have a DataFrame 'events_df' with timestamp data
-# data_cleaning = DataCleaning()
 
-
-
-        
         
 DATABASE_TYPE = 'postgresql'
 DBAPI = 'psycopg2'
@@ -176,18 +169,17 @@ PORT = 5432
 if __name__ == "__main__":
     # Initialize DatabaseConnector
     file_path = 'db_creds.yaml'
+    # Create instance of DatabaseConnector class
     db_connector = DatabaseConnector(file_path)
-
-    # Data extraction and cleaning
-    # ... code to create data_extractor and get df ...
+    # Create instance of DataExtractor class
     data_extractor = DataExtractor(db_connector)
-    users_df = data_extractor.read_rds_table('legacy_users')
     # Create instance of DataCleaning class
     data_cleaning = DataCleaning(data_extractor)
     # Secure local connection to 'sales_data' database
     engine = create_engine(f"{DATABASE_TYPE}+{DBAPI}://{USER}:{PASSWORD}@{HOST}:{PORT}/{DATABASE}")
     '''
     # 1. User details #
+    users_df = data_extractor.read_rds_table('legacy_users')
     cleaned_users_df = data_cleaning.clean_user_data(users_df)
     # Upload cleaned data to the database in new table dim_users
     db_connector.upload_to_db(cleaned_users_df, 'dim_users', engine)
@@ -198,11 +190,12 @@ if __name__ == "__main__":
     df_card = data_extractor.retrieve_pdf_data(pdf_path)
     cleaned_card_details = data_cleaning.clean_card_data(df_card)
     db_connector.upload_to_db(cleaned_card_details, 'dim_card_details', engine)
+
+    # 3. Store details #
     # API links
     number_of_stores_endpoint = 'https://aqj7u5id95.execute-api.eu-west-1.amazonaws.com/prod/number_stores'
     retrieve_stores_data_endpoint = 'https://aqj7u5id95.execute-api.eu-west-1.amazonaws.com/prod/store_details/{store_number}'
 
-    # 3. Store details #
     store_number = data_extractor.list_number_of_stores(number_of_stores_endpoint)
     number_of_stores = int(store_number['number_stores'])
     stores_df = data_extractor.retrieve_stores_data(retrieve_stores_data_endpoint, number_of_stores)
@@ -230,9 +223,18 @@ if __name__ == "__main__":
 
     '''
     ## Testing star-based schema ##
-    # 1. User details #
-    cleaned_users_df = data_cleaning.clean_user_data(users_df)
-    print(cleaned_users_df['join_date'])
+    # 5. Master orders table #
+    dates_s3_address = 'https://data-handling-public.s3.eu-west-1.amazonaws.com/date_details.json'
+    date_events_df = data_extractor.extract_from_http_json(dates_s3_address)
+    cleaned_date_events_df = data_cleaning.clean_events_data(date_events_df)
+    transposed_cleaned_df = cleaned_date_events_df.transpose()
+    print(transposed_cleaned_df.head())
+
+
+
+    
+
+    
 
 
 
