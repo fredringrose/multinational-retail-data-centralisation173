@@ -1,204 +1,183 @@
-import os
-# Manually setting file path for JAVA_HOME in order to run tabula-py successfully
-os.environ["JAVA_HOME"] = './miniconda3/lib/python3.11/site-packages'
-import pprint
+import tabula
 import requests
-import json
-from tabula import read_pdf
-from sqlalchemy import create_engine
-import boto3
 import pandas as pd
-from database_utils import DatabaseConnector  # Import the DatabaseConnector class
+from database_utils import DatabaseConnector
+from sqlalchemy import inspect
+import json
+import numpy as np
+import boto3
+from io import StringIO
+import yaml
+
+num_stores_endpoint = 'https://aqj7u5id95.execute-api.eu-west-1.amazonaws.com/prod/number_stores'
+retrieve_store_endpoint = 'https://aqj7u5id95.execute-api.eu-west-1.amazonaws.com/prod/store_details/{store_number}'
+s3_url = "s3://data-handling-public/products.csv"
+s3_bucket = "data-handling-public"
+s3_object_key = "products.csv"
 
 
+# The DataExtractor class is used to extract data from a source.
 class DataExtractor:
-    def __init__(self, database_connector):
-        self.database_connector = database_connector
 
-    def read_rds_table(self, table_name):
-        # Access the engine object from the DatabaseConnector instance
-        engine = self.database_connector.engine
-        try:
-            # Running SQL query and returning table in a DataFrame
-            query = f"SELECT * FROM {table_name}"
-            df = pd.read_sql(query, engine)
-            return df
-        except Exception as e:
-            print(f"Error reading table '{table_name}': {e}")
-            return None
+      
+    def __init__(self) -> None:
+        """
+        The above function is a constructor that initializes an object of a class.
+        """
+        pass
 
-    def retrieve_pdf_data(self, link): 
-        # Use tabula to read the PDF file from the link
-        try:
-            # Extract data from all pages
-            df_list = read_pdf(link, stream=True, pages='all')
-            # Combine all DataFrames into one (if multiple pages)
-            df = pd.concat(df_list, ignore_index=True)
-            return df
-        
-        except Exception as e:
-            print(f"Error retrieving PDF data: {e}")
-            return None
+    def read_api_creds(self):
+        """
+        The function reads a YAML file containing database credentials and returns them as a dictionary.
+        :return: the `creds_dict` variable, which is a dictionary containing the credentials read from
+        the YAML file.
+        """
 
-    # Set up the header with the API key 
-    headers = {
-    'x-api-key': 'yFBQbwXe9J3sd6zWVAMrK6lcxxr0q1lr2PT6DDMX'
-    }
+        with open("api_key.yaml", 'r') as file:
+            api_key_header = yaml.safe_load(file)
+        return api_key_header
 
-    # Function to list the number of stores
-    def list_number_of_stores(self, endpoint):
-        # Set up the header with the API key 
-        try:
-            response = requests.get(endpoint, headers=self.headers)
-            response.raise_for_status()  # Raises an HTTPError if the HTTP request returned an unsuccessful status code
-            return response.json()  # Assuming the response contains JSON data
-        except requests.exceptions.HTTPError as e:
-            print(f'An HTTP error occurred: {e}')
-            return None
-        except requests.exceptions.RequestException as e:
-            print(f'A request exception occurred: {e}')
-            return None
 
-    # Function to get the details of a specific store
-    def retrieve_stores_data(self, endpoint, number_of_stores):
-        # Debugging: print the number of stores
-        print(f"Retrieving data for {number_of_stores - 1} stores.")
+    def list_db_tables(self, engine):
+        """
+        The function `list_db_tables` retrieves a list of table names from a database using the provided
+        SQLAlchemy engine.
+        @param engine - The `engine` parameter is an instance of a database engine, such as
+        `sqlalchemy.engine.Engine`. It is used to connect to the database and perform operations on it.
+        @returns a list of table names in the database.
+        """
 
-        # Initialize an empty list to store the details of each store
-        stores_data = []
-
-        # Loop through the number of stores, retrieve details for each, and append to the list
-        for store_number in range(1, number_of_stores):  # Assuming store numbers start at 0
-            try:
-                # Replace placeholder with actual store number
-                response = requests.get(endpoint.format(store_number=store_number), headers=self.headers)
-                response.raise_for_status()  # Raises an HTTPError if the HTTP request returned an unsuccessful status code
-                store_data = response.json()
-                stores_data.append(store_data)
-            except requests.exceptions.HTTPError as e:
-                print(f'HTTP error occurred when retrieving store {store_number}: {e}')
-            except requests.exceptions.RequestException as e:
-                print(f'Request exception occurred when retrieving store {store_number}: {e}')
-            except Exception as e:
-                print(f'Unexpected error occurred when retrieving store {store_number}: {e}')
-
-        # Convert the list of store details to a pandas DataFrame
-        return pd.DataFrame(stores_data)
+        inspector = inspect(engine)
+        self.table_list = inspector.get_table_names()
+        print(self.table_list)
+        return self.table_list
     
-    def called_clean_store_data(self, df):
-        # Drop any columns with more than 100 null values
-        df = df.dropna(thresh=1000, axis=1)
+
+    def read_rds_table(self, engine, table_name: pd.DataFrame):
+        """
+        The function reads a table from a database using the provided engine and table name.
+        @param engine - The `engine` parameter is the database engine object that is used to connect to
+        the database. It is typically created using a library like SQLAlchemy.
+        @param {pd.DataFrame} table_name - The `table_name` parameter is the name of the table in the
+        database that you want to read. It should be a string value.
+        @returns a pandas DataFrame object named "pd_users" if the table name exists in the database
+        tables. If the table name does not exist, it prints "Invalid Table" and does not return
+        anything.
+        """
+
+        con = engine
+        db_tables = self.list_db_tables(engine)
+        if table_name in db_tables:
+            pd_users = pd.read_sql_table(table_name, con=con)
+            return pd_users
+        else:
+            print('Invalid Table')
+
+
+    def retrieve_pdf_data(self, filepath: str):
+        """
+        The function retrieves data from a PDF file and converts it into a pandas dataframe.
+        @param {str} filepath - The `filepath` parameter is a string that represents the file path of
+        the PDF file that you want to retrieve data from.
+        @returns a pandas dataframe containing the data extracted from the PDF file.
+        """
         
-        # Drop rows with any null values
-        df = df.dropna(how='any', axis=0)
-        
+        cc_df = tabula.read_pdf(filepath, stream=False, pages='all')
+        cc_df = pd.concat(cc_df)
+        print("PDF converted to pandas dataframe")
+        return cc_df
+    
+
+    def list_number_of_stores(self, endpoint: str, headers: dict):
+        """
+        The function retrieves the number of stores from a specified endpoint using an API key and
+        returns the number of stores.
+        @param {str} endpoint - The `endpoint` parameter is a string that represents the URL of the API
+        endpoint you want to make a request to. In this case, the `endpoint` is set to
+        `'https://aqj7u5id95.execute-api.eu-west-1.amazonaws.com/prod/number_stores'
+        @param {dict} headers - The `headers` parameter is a dictionary that contains the headers to be
+        included in the HTTP request. In this case, it includes the `x-api-key` header with the value
+        `yFBQbwXe9J3sd6zWVAMrK6lcxxr0q
+        @returns the number of stores from the response JSON.
+        """
+        num_stores_endpoint = endpoint
+        num_stores_endpoint = 'https://aqj7u5id95.execute-api.eu-west-1.amazonaws.com/prod/number_stores'
+        response = requests.get(num_stores_endpoint, headers=headers)
+        print(f"Status Code: {response.status_code}")
+        stores_list = response.json()
+        return stores_list['number_stores']
+    
+    
+    def retrieve_stores_data(self, endpoint: str, headers: dict):
+        """
+        The function retrieves store data from an API endpoint and returns it as a pandas DataFrame.
+        @param {str} endpoint - The `endpoint` parameter is a string that represents the URL endpoint
+        where the store data is retrieved from. It should be in the format of a valid URL.
+        @param {dict} headers - The `headers` parameter is a dictionary that contains the headers to be
+        included in the HTTP request. In this case, it includes the `x-api-key` header with a specific
+        value.
+        @returns a pandas DataFrame containing the store details retrieved from the specified endpoint.
+        """
+
+        curr_stores = []
+        no_of_stores = self.list_number_of_stores(endpoint=num_stores_endpoint, headers=headers)
+        retrieve_store_endpoint = 'https://aqj7u5id95.execute-api.eu-west-1.amazonaws.com/prod/store_details/'
+        retrieve_store_endpoint = endpoint
+        for store in range(0, no_of_stores):
+            response = requests.get(f"{retrieve_store_endpoint}{store}", headers=headers).json()
+            curr_stores.append(pd.DataFrame(response,index=[np.NaN]))
+        curr_stores_df = pd.concat(curr_stores)
+        print(f'stores loaded into dataframe with {len(curr_stores_df)} rows :')
+        return curr_stores_df
+    
+
+    def extract_from_s3(self, bucket: str, file_from_s3: str):
+        """
+        The function extracts data from a file stored in an S3 bucket and returns it as a pandas
+        DataFrame.
+        @param {str} bucket - The "bucket" parameter is the name of the S3 bucket from which you want to
+        extract the file. It is a string that represents the name of the bucket.
+        @param {str} file_from_s3 - The `file_from_s3` parameter is the name or key of the file that you
+        want to extract from the S3 bucket. It is the specific file that you want to download and read
+        as a pandas DataFrame.
+        @returns a pandas DataFrame object.
+        """
+
+        s3 = boto3.client('s3')
+        s3_object = s3.get_object(Bucket=bucket, Key=file_from_s3)
+        s3_data = s3_object['Body'].read().decode('utf-8')
+        df = pd.read_csv(StringIO(s3_data))
+        print('S3 file Downloaded')
+        print(df)
         return df
     
-    def extract_from_s3(self, s3_address):
-        # Split the S3 address into bucket name and file key
-        s3_bucket, s3_key = s3_address.replace("s3://", "").split("/", 1)
-
-        # Initialize S3 client
+    
+    def extract_from_s3_json(self, bucket: str, file_from_s3: str):
+        """
+        The function extracts data from a JSON file stored in an S3 bucket and returns it as a pandas
+        DataFrame.
+        @param {str} bucket - The "bucket" parameter is the name of the S3 bucket where the JSON file is
+        located.
+        @param {str} file_from_s3 - The `file_from_s3` parameter is the name or key of the file that you
+        want to extract from the S3 bucket. It should be a string that specifies the file path or name
+        in the S3 bucket.
+        @returns a pandas DataFrame object.
+        """
+     
         s3 = boto3.client('s3')
+        s3_object = s3.get_object(Bucket=bucket, Key=file_from_s3)
+        s3_data = s3_object['Body'].read().decode('utf-8')
+        df = pd.read_json(StringIO(s3_data))
+        print(df.head())
+        print('S3 File Downloaded')
+        return df
 
-        # Temporary file path (adjust as needed)
-        temp_file_path = '/tmp/temp_file.csv'
-
-        try:
-            # Download file from S3 to temporary file
-            s3.download_file(s3_bucket, s3_key, temp_file_path)
-
-            # Read the file into a pandas DataFrame
-            df = pd.read_csv(temp_file_path)
-
-            return df
-        except Exception as e:
-            print(f"Error accessing S3 data: {e}")
-            return None
-        
-    def extract_from_http_json(self, url):
-        try:
-        # Send a GET request to the URL
-            response = requests.get(url)
-            response.raise_for_status()  # Raise an error for bad status codes
-
-            # Load JSON content
-            data = json.loads(response.content)
-            print("Data type:", type(data))
-            print("Length of data:", len(data))
-            pprint.pprint(list(data.keys())[:6])
-
-            # If data is a dictionary, wrap it in a list
-            if isinstance(data, dict):
-                data = [data]
-
-            # Convert the JSON object to a pandas DataFrame
-            df = pd.json_normalize(data)
-            print(df.head())
-            return df
-        
-        except requests.RequestException as e:
-            print(f"HTTP request error: {e}")
-            return None
-        except json.JSONDecodeError as e:
-            print(f"JSON decoding error: {e}")
-            return None
-        except Exception as e:
-            print(f"An error occurred: {e}")
-            return None
-    
-
-# Example usage:
-if __name__ == "__main__": 
-    file_path = 'db_creds.yaml'
-    db_connector = DatabaseConnector(file_path)
-    data_extractor = DataExtractor(db_connector)
-    '''
-     # 1. User details #
-    # Assuming 'legacy_users' is a valid table in the database
-    users_df = data_extractor.read_rds_table('legacy_users')
-
-    # 2. Card details #
-    # Using tabula-py package to return tabular data from PDF link as DataFrame
-    pdf_path = 'https://data-handling-public.s3.eu-west-1.amazonaws.com/card_details.pdf'
-    df_card = data_extractor.retrieve_pdf_data(pdf_path)
-    # .info() provides summary of data types and non-null values
-    
-    print(df_card.info())
-    print(df_card.isna().mean() * 100)
-
-    # 3. Store details #
-    # Variables containing the two API endpoints required for GET requests
-    number_of_stores_endpoint = 'https://aqj7u5id95.execute-api.eu-west-1.amazonaws.com/prod/number_stores'
-    retrieve_stores_data_endpoint = 'https://aqj7u5id95.execute-api.eu-west-1.amazonaws.com/prod/store_details/{store_number}'
-
-    store_number = data_extractor.list_number_of_stores(number_of_stores_endpoint)
-    print(store_number)
-    number_of_stores = int(store_number['number_stores'])
-    # Calling retrieve data method with API endpoint as argument to return store data in DataFrame in variable
-    stores_df = data_extractor.retrieve_stores_data(retrieve_stores_data_endpoint, number_of_stores)
-    
-    print(stores_df.head())
-    print(stores_df.info())
-
-    # 4. Product details #
-    s3_address = 's3://data-handling-public/products.csv'
-    products_df = data_extractor.extract_from_s3(s3_address)
-    if products_df is not None:
-        print(products_df['weight'])  # Prints the weight column of the DataFrame
-
-    # 5. Master orders table # (Using same extraction method used User details)
-    orders_df = data_extractor.read_rds_table('orders_table')
-
-    # 6. Date events details #
-    dates_s3_address = 'https://data-handling-public.s3.eu-west-1.amazonaws.com/date_details.json'
-    date_events_df = data_extractor.extract_from_http_json(dates_s3_address)
-    print(date_events_df.dtypes)
-    print(date_events_df.head(2))
-    '''
-
-    ## Testing Extraction methods ##
-    dates_s3_address = 'https://data-handling-public.s3.eu-west-1.amazonaws.com/date_details.json'
-    date_events_df = data_extractor.extract_from_http_json(dates_s3_address)
-    
-
+if __name__ == '__main__':
+    db = DatabaseConnector('db_creds.yaml')
+    de = DataExtractor(db)
+    source_engine = db.init_db_engine()
+    table_list = de.list_db_tables()
+    print(table_list)
+    api_key_header = de.read_api_creds()
+    de.list_number_of_stores(num_stores_endpoint, api_key_header)
+    de.retrieve_stores_data(retrieve_store_endpoint, api_key_header)

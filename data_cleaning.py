@@ -1,12 +1,9 @@
 import os
 # Manually setting file path for JAVA_HOME in order to run tabula-py successfully
 os.environ["JAVA_HOME"] = './miniconda3/lib/python3.11/site-packages'
-import requests
 import pandas as pd
 from pandas.api.types import is_string_dtype, is_numeric_dtype
-import psycopg2
 import re
-from sqlalchemy import create_engine
 from database_utils import DatabaseConnector
 from data_extraction import DataExtractor
 
